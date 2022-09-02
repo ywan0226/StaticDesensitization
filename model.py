@@ -4,14 +4,38 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import validates
 import re
+from sqlalchemy import and_, or_, asc, desc
 
 db = SQLAlchemy()
 
 
 class BaseModel:
     id = db.Column(db.Integer, primary_key=True)
-    createTime = db.Column(db.DateTime, default=datetime.now())
-    updateTime = db.Column(db.DateTime, default=datetime.now())
+    createTime = db.Column(db.DateTime, default=db.func.now())
+    updateTime = db.Column(db.DateTime, default=db.func.now())
+
+    def create(self):
+        db.session.add(self)
+        db.session.commit()
+        return self
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+    def update(self, data, direct_commit=True):
+        pass
+
+    @classmethod
+    def find_by_id(cls, query_id):
+        if isinstance(query_id, list):
+            return cls.query.filter(cls.id.in_(query_id)).all()
+        else:
+            return cls.query.filter_by(id=query_id).first()
+
+    @classmethod
+    def find_all(cls):
+        return cls.query.order_by(cls.updateTime.desc()).all()
 
 
 class User(db.Model, BaseModel):
@@ -44,6 +68,7 @@ class DB(db.Model, BaseModel):
     addr = db.Column(db.String(15))
     port = db.Column(db.String(32))
     type = db.Column(db.Enum('mysql', 'oracle'))
+    grant = db.Column(db.String(32))
     tables = db.relationship("TableName", backref="db")
 
     @validates('addr')
@@ -90,4 +115,21 @@ class ScanResult(db.Model, BaseModel):
     __tablename__ = 'scan_result'
 
     result = db.Column(db.String(32), nullable=False)
+    category = db.Column(db.String(32))
+    level = db.Column(db.Enum('low', 'medium', 'high'))
     task = db.Column(db.String(32), db.ForeignKey(ScanTask.id))
+
+
+class DesensiTask(db.Model, BaseModel):
+    __tablename__ = 'desensi_task'
+
+    name = db.Column(db.String(32), nullable=False)
+    cron = db.Column(db.String(32))
+    method = db.Column(db.String(32))  # 全量、增量
+    depResult = db.Column(db.String(32), db.ForeignKey(ScanResult.id))
+    proResult = db.Column(db.String(32), db.ForeignKey(ScanResult.id))
+    depTable = db.Column(db.String(32), db.ForeignKey(TableName.id))
+    proTable = db.Column(db.String(32), db.ForeignKey(TableName.id))
+    rule = db.Column(db.String(32), db.ForeignKey(Rule.id))
+    task = db.Column(db.String(32), db.ForeignKey(ScanTask.id))
+
